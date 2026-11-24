@@ -35,13 +35,19 @@ So the questions I'm building toward are:
 | | Single KV260 | 4-board cluster |
 |---|---|---|
 | SoC | Zynq UltraScale+ MPSoC (K26 SOM) | 4× |
-| CPU | Quad-core Arm Cortex-A53, Ubuntu | 16 cores |
+| CPU | Quad-core Arm Cortex-A53, Ubuntu 24.04 LTS | 16 cores |
 | Logic cells | ~256K | ~1M |
 | DSP slices | 1,248 | 4,992 |
-| On-chip RAM (BRAM + URAM) | ~26.6 Mb | ~106 Mb |
-| DRAM | 4 GB DDR4, 64-bit | 16 GB |
-| DRAM bandwidth (theoretical) | ~19.2 GB/s | ~76.8 GB/s aggregate |
+| Block RAM | 144 × 36 Kb ≈ 5.1 Mb | ≈ 20.4 Mb |
+| UltraRAM | 64 × 288 Kb ≈ 18 Mb | ≈ 72 Mb |
+| Distributed (LUT) RAM | ≈ 3.5 Mb | ≈ 14 Mb |
+| DRAM | 4 GB DDR4, 64-bit, 2400 MT/s | 16 GB |
+| DRAM bandwidth (theoretical peak) | ~19.2 GB/s | ~76.8 GB/s aggregate |
 | Network | Gigabit Ethernet | Unmanaged gigabit switch |
+
+The three on-chip memories add up to AMD's quoted ~26.6 Mb. UltraRAM matters most for this design: it's where the large activation buffers will go.
+
+19.2 GB/s is a theoretical peak (2400 MT/s × 8 bytes). The CPU and the fabric share it, so the fabric will see noticeably less. Measuring the real DMA throughput is part of Phase 0, and that measured number becomes the practical ceiling for the results table.
 
 ## Architecture (planned)
 
@@ -83,6 +89,8 @@ token ─► [Board 0: layers  0–5 ] ─► [Board 1: layers  6–11] ─►
                     (one board active at a time)
 ```
 
+The uneven split is deliberate. The last board also holds the output layer, which turns the final hidden state into word probabilities. For TinyLlama that's 32,000 × 2048 ≈ 65M parameters, all read on every token. That's about 1.5 transformer layers' worth (≈44M parameters each), so 4 layers plus the output layer comes to roughly 5.5 layer-equivalents of memory reads, close to the 6 on every other board. The first board's embedding table is nearly free, because each token reads only one row of it.
+
 **Tensor parallelism:** split every layer's weight matrices across all four boards. Every board works on every layer at once, so aggregate bandwidth is used in parallel. The catch is that the boards have to sync (all-reduce / all-gather) several times per layer.
 
 ```
@@ -99,7 +107,7 @@ At batch 1 those syncs move tiny amounts of data, so I expect **network latency,
 
 | Status | Phase | Goal | Model | Boards |
 |---|---|---|---|---|
-| ⬜ | 0 | Board bring-up: Ubuntu on Kria, Vivado/Vitis, blinky, AXI DMA loopback | — | 1 |
+| ⬜ | 0 | Board bring-up: Ubuntu on Kria, Vivado/Vitis, blinky, AXI DMA loopback, measure real DMA throughput | — | 1 |
 | ⬜ | 1 | Pure-C inference on the A53s (CPU baseline) | stories15M → 110M | 1 |
 | ⬜ | 2 | Matvec engine in the PL, offload matmuls, int8 weights | stories110M | 1 |
 | ⬜ | 3 | Pipeline parallelism over Ethernet | stories110M → TinyLlama | 2 → 4 |
@@ -112,8 +120,8 @@ Phase 0 is next. Each phase ends with a git tag (`v0.1-phase1`, …), an entry i
 
 | Model | Params | Source | License |
 |---|---|---|---|
-| stories15M | 15M | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) | MIT |
-| stories110M | 110M | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) | MIT |
+| stories15M | 15M | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) | Weights MIT ([karpathy/tinyllamas](https://huggingface.co/karpathy/tinyllamas)); trained on [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) (CDLA-Sharing-1.0) |
+| stories110M | 110M | [karpathy/llama2.c](https://github.com/karpathy/llama2.c) | Weights MIT ([karpathy/tinyllamas](https://huggingface.co/karpathy/tinyllamas)); trained on [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) (CDLA-Sharing-1.0) |
 | TinyLlama-1.1B | 1.1B | [TinyLlama](https://github.com/jzhang38/TinyLlama) | Apache-2.0 |
 
 The runtime starts from llama2.c. **Model weights are not committed to this repo.** A download script will fetch them (planned: `scripts/download_models.sh`).
@@ -139,6 +147,8 @@ Nothing measured yet.
 | 2 | 1 board, PL matvec | stories110M | int8 | TBD | TBD | TBD |
 | 3 | 4 boards, pipeline | TinyLlama 1.1B | int8 | TBD | TBD | TBD |
 | 4 | 4 boards, tensor-parallel | TinyLlama 1.1B | int8 | TBD | TBD | TBD |
+
+"% of ceiling" will be measured against the DMA throughput from Phase 0, not just the theoretical 19.2 GB/s.
 
 **Methodology:** fixed prompt and seed, 256 generated tokens, median of 5 runs, with decode and prefill reported separately. Full details will live in [`bench/README.md`](bench/README.md).
 
@@ -171,7 +181,7 @@ bench/
 
 ## Getting started
 
-Coming soon. Once Phase 0 is done, [`docs/setup-kv260.md`](docs/setup-kv260.md) will walk through flashing Ubuntu, installing the toolchain, and building the first bitstream.
+Coming soon. Once Phase 0 is done, [`docs/setup-kv260.md`](docs/setup-kv260.md) will walk through flashing Ubuntu 24.04 LTS, installing the toolchain, and building the first bitstream. Right now it's just a placeholder.
 
 ## Design decisions
 
@@ -184,7 +194,8 @@ Coming soon. Once Phase 0 is done, [`docs/setup-kv260.md`](docs/setup-kv260.md) 
 ## Open questions
 
 - Does tensor parallelism over gigabit Ethernet actually beat pipeline parallelism at batch 1? Where's the crossover as model size changes?
-- How much latency does a Linux socket round-trip add per sync, and how much can I claw back (UDP, busy-polling, pinned cores) before FPGA-side networking is worth it?
+- How much latency does a Linux socket round-trip add per sync? TinyLlama needs roughly 44 syncs per token (2 per layer × 22 layers), against a theoretical bandwidth floor of ~14 ms per token on 4 boards. Is per-sync latency small enough next to that floor for tensor parallelism to win?
+- Can UDP plus busy-polling get per-sync latency low enough to matter? Does pinning the network thread to its own core help further, or is that where FPGA-side networking becomes worth it?
 - What fraction of theoretical DDR bandwidth can the PL realistically pull through the AXI ports while the CPU is also using memory?
 - How much quality does int8 lose on these small models, and does int4 break them?
 - Once matvec is offloaded, how much does the CPU-side work (attention, softmax) start to matter?
@@ -197,4 +208,4 @@ Coming soon. Once Phase 0 is done, [`docs/setup-kv260.md`](docs/setup-kv260.md) 
 
 ## License
 
-MIT.
+The code in this repo is MIT-licensed. See [LICENSE](LICENSE). Model weights and datasets aren't part of this repo and have their own licenses (see [Models](#models)).
