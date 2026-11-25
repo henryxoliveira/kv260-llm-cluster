@@ -205,7 +205,3 @@ Coming soon. Once Phase 0 is done, [`docs/setup-kv260.md`](docs/setup-kv260.md) 
 - [karpathy/llama2.c](https://github.com/karpathy/llama2.c): the runtime starting point and the stories models.
 - [TinyLlama](https://github.com/jzhang38/TinyLlama): the 1.1B model.
 - AMD's Kria KV260 and K26 SOM documentation.
-
-## License
-
-The code in this repo is MIT-licensed. See [LICENSE](LICENSE). Model weights and datasets aren't part of this repo and have their own licenses (see [Models](#models)).

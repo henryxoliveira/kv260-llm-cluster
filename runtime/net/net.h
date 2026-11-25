@@ -1,6 +1,6 @@
 // net.h — inter-board networking helpers (starter).
 //
-// Networking lives on the ARM side using plain Linux TCP sockets (see CLAUDE.md
+// Networking lives on the ARM side using plain Linux TCP sockets (see the README
 // for why not in fabric). At batch 1 the messages between boards are tiny
 // (one activation vector, a few KB), so per-message *latency* matters far more
 // than bandwidth. TCP_NODELAY is set to stop Nagle's algorithm from holding

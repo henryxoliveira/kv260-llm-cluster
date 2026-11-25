@@ -52,3 +52,6 @@ models/
 .vscode/
 .idea/
 *.swp
+
+# ---- Local-only files (kept out of the public repo) ----
+CLAUDE.md
