@@ -1,0 +1,54 @@
+# ---- Vivado / Vitis build output (projects are regenerated from hw/scripts/*.tcl) ----
+*.xpr
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.gen/
+*.srcs/
+*.xsa
+.Xil/
+*.jou
+*.log
+*.str
+*.backup.*
+vivado_pid*.zip
+webtalk*
+xsim.dir/
+hw/build/
+hw/vivado/
+
+# Bitstreams (only commit if explicitly tagged as a release artifact)
+*.bit
+*.bin
+*.xclbin
+*.dcp
+
+# ---- Simulation output ----
+hw/tb/obj_dir/
+hw/tb/sim_build/
+*.vcd
+*.fst
+results.xml
+__pycache__/
+
+# ---- C runtime build output ----
+runtime/build/
+*.o
+*.a
+*.so
+
+# ---- Model weights (downloaded by scripts/download_models.sh, never committed) ----
+models/
+*.pt
+*.pth
+*.safetensors
+*.gguf
+*.ckpt
+
+# ---- OS / editor ----
+.DS_Store
+.vscode/
+.idea/
+*.swp
